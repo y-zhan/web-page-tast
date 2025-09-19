@@ -63,14 +63,6 @@
     </div>
   </header>
 
-  <!-- === Search Overlay === -->
-  <div id="searchOverlay" class="search-overlay">
-    <div class="search-container">
-      <input type="text" placeholder="Search ..." />
-      <button>SEARCH</button>
-    </div>
-  </div>
-
   <!-- === Sidebar === -->
   <div class="sidebar">
     <a href="Dashboard.html">Dashboard</a>
@@ -84,7 +76,6 @@
     <h1>Reports</h1>
     <p class="section-desc">View summarized weekly and monthly sensor reports for currents A, B, and C. Choose a sensor and select a time range below to generate the charts.</p>
 
-    <!-- === Sensor and Date Controls === -->
     <div class="sensor-controls">
       <div class="sensor-dropdown">
         <button class="sensor-toggle-btn" onclick="toggleSensorMenu()">Select Sensor ▾</button>
@@ -96,7 +87,7 @@
       <input type="month" id="monthPicker" onchange="renderMonthReport()" />
     </div>
 
-    <!-- === Weekly Report Section === -->
+    <!-- Weekly Report -->
     <h2>Weekly Report</h2>
     <div class="chart-row">
       <div class="chart-col"><canvas id="weekLine"></canvas></div>
@@ -106,18 +97,8 @@
       <div class="chart-col"><canvas id="weekBar"></canvas></div>
     </div>
     <div class="stats" id="weekStats">Weekly stats will appear here.</div>
-    <h3>Get the Weekly CSV</h3>
-    <div class="csv-controls">
-      <label for="weekGran">Granularity:</label>
-      <select id="weekGran">
-        <option value="raw">Raw</option>
-        <option value="hourly">Hourly</option>
-        <option value="daily">Daily</option>
-      </select>
-      <button onclick="exportCSV('week')">Export Weekly CSV</button>
-    </div>
 
-    <!-- === Monthly Report Section === -->
+    <!-- Monthly Report -->
     <h2>Monthly Report</h2>
     <div class="chart-row">
       <div class="chart-col"><canvas id="monthLine"></canvas></div>
@@ -127,231 +108,182 @@
       <div class="chart-col"><canvas id="monthBar"></canvas></div>
     </div>
     <div class="stats" id="monthStats">Monthly stats will appear here.</div>
-    <h3>Get the Monthly CSV</h3>
-    <div class="csv-controls">
-      <label for="monthGran">Granularity:</label>
-      <select id="monthGran">
-        <option value="raw">Raw</option>
-        <option value="hourly">Hourly</option>
-        <option value="daily">Daily</option>
-      </select>
-      <button onclick="exportCSV('month')">Export Monthly CSV</button>
-    </div>
-
-    <!-- === PDF Export Section === -->
-    <h3>Download Monthly PDF Report</h3>
-    <div class="pdf-section">
-      <button onclick="exportPDF()">Export PDF Report</button>
-    </div>
   </div>
 
-  <script>
-    const API_BASE = "https://40btd9hsk0.execute-api.us-east-1.amazonaws.com/sensors";
-    let currentSensor = null;
-    let charts = {};
-    let weekData = null;
-    let monthData = null;
+<script>
+const API_BASE = "https://40btd9hsk0.execute-api.us-east-1.amazonaws.com/sensors";
+let currentSensor = null;
+let charts = {};
+let weekData = null;
+let monthData = null;
 
-    function toggleSearch(){const o=document.getElementById("searchOverlay");o.style.display=(o.style.display==="block")?"none":"block";}
-    function toggleSensorMenu(){const m=document.getElementById('sensorDropdown');m.style.display=(m.style.display==='block')?'none':'block';}
-    document.addEventListener('click',e=>{const m=document.getElementById('sensorDropdown');const b=document.querySelector('.sensor-toggle-btn');if(!b.contains(e.target)&&!m.contains(e.target)){m.style.display='none';}});
+function toggleSearch(){const o=document.getElementById("searchOverlay");o.style.display=(o.style.display==="block")?"none":"block";}
+function toggleSensorMenu(){const m=document.getElementById('sensorDropdown');m.style.display=(m.style.display==='block')?'none':'block';}
+document.addEventListener('click',e=>{const m=document.getElementById('sensorDropdown');const b=document.querySelector('.sensor-toggle-btn');if(!b.contains(e.target)&&!m.contains(e.target)){m.style.display='none';}});
 
-    // 动态加载传感器
-    async function loadSensors(){
-      try{
-        const res=await fetch(API_BASE);
-        const json=await res.json();
-        console.log("API response:", json);
+// 动态加载传感器
+async function loadSensors(){
+  try{
+    const res=await fetch(API_BASE);
+    const json=await res.json();
+    console.log("API response:", json);
 
-        if(!json.items || json.items.length === 0){
-          alert("No sensors found from API.");
-          return;
-        }
-
-        const sensors=[...new Set(json.items.map(r=>r.Sensor_id))];
-        const dropdown=document.getElementById('sensorDropdown');
-        dropdown.innerHTML="";
-        sensors.forEach(id=>{
-          const div=document.createElement('div');
-          div.textContent=id;
-          div.onclick=()=>selectSensor(id);
-          dropdown.appendChild(div);
-        });
-      }catch(e){
-        console.error("Failed to load sensors",e);
-        alert("Error loading sensors, check console.");
-      }
+    if(!json.items || json.items.length === 0){
+      alert("No sensors found from API.");
+      return;
     }
 
-    function selectSensor(sensor){
-      currentSensor=sensor;
-      renderWeekReport();
-      renderMonthReport();
-    }
+    const sensors=[...new Set(json.items.map(r=>r.Sensor_id))];
+    const dropdown=document.getElementById('sensorDropdown');
+    dropdown.innerHTML="";
+    sensors.forEach(id=>{
+      const div=document.createElement('div');
+      div.textContent=id;
+      div.onclick=()=>selectSensor(id);
+      dropdown.appendChild(div);
+    });
+  }catch(e){
+    console.error("Failed to load sensors",e);
+    alert("Error loading sensors, check console.");
+  }
+}
 
-    // 拉取原始数据
-    async function fetchRawData(sensor, start, end){
-      try {
-        const res=await fetch(API_BASE);
-        if(!res.ok) throw new Error("API error");
-        const json=await res.json();
-        console.log("Fetched data:", json);
+function selectSensor(sensor){
+  currentSensor=sensor;
+  renderWeekReport();
+  renderMonthReport();
+}
 
-        return json.items.filter(r=>{
-          const ts=r.timestamp*1000;
-          return r.Sensor_id===sensor && ts>=start*1000 && ts<=end*1000;
-        });
-      } catch(e){
-        console.error("Fetch error:",e);
-        alert("Failed to load data from API.");
-        return [];
-      }
-    }
+// 拉取原始数据
+async function fetchRawData(sensor, start, end){
+  try {
+    const res=await fetch(API_BASE);
+    if(!res.ok) throw new Error("API error");
+    const json=await res.json();
+    console.log("Fetched data:", json);
 
-    function aggregateRawData(raw,type){
-      if(type==="raw"){
-        return {
-          labels: raw.map(r=>new Date(r.timestamp*1000).toLocaleString()),
-          IA: raw.map(r=>r.IA), IB: raw.map(r=>r.IB), IC: raw.map(r=>r.IC)
-        };
-      }
-      const grouped={};
-      raw.forEach(r=>{
-        const d=new Date(r.timestamp*1000);
-        let key=(type==="daily")? d.toISOString().split("T")[0]: d.toISOString().slice(0,13)+":00";
-        if(!grouped[key]) grouped[key]={IA:[],IB:[],IC:[]};
-        grouped[key].IA.push(r.IA); grouped[key].IB.push(r.IB); grouped[key].IC.push(r.IC);
-      });
-      return {
-        labels:Object.keys(grouped),
-        IA:Object.values(grouped).map(g=>avg(g.IA)),
-        IB:Object.values(grouped).map(g=>avg(g.IB)),
-        IC:Object.values(grouped).map(g=>avg(g.IC))
-      };
-    }
+    return json.items.filter(r=>{
+      const ts=r.timestamp;
+      return r.Sensor_id===sensor && ts>=start && ts<=end;
+    });
+  } catch(e){
+    console.error("Fetch error:",e);
+    alert("Failed to load data from API.");
+    return [];
+  }
+}
 
-    async function renderWeekReport(){
-      if(!currentSensor)return;
-      const week=document.getElementById("weekPicker").value;
-      if(!week)return;
-      const start=new Date(week+"-1");
-      const end=new Date(start); end.setDate(start.getDate()+7);
-      const raw=await fetchRawData(currentSensor,Math.floor(start/1000),Math.floor(end/1000));
-      weekData=aggregateRawData(raw,"daily");
-      drawCharts("week",weekData);
-      updateStats("weekStats",weekData);
-    }
+function aggregateRawData(raw,type){
+  if(raw.length === 0) return {labels:[],IA:[],IB:[],IC:[]};
 
-    async function renderMonthReport(){
-      if(!currentSensor)return;
-      const month=document.getElementById("monthPicker").value;
-      if(!month)return;
-      const start=new Date(month+"-01");
-      const end=new Date(start); end.setMonth(start.getMonth()+1);
-      const raw=await fetchRawData(currentSensor,Math.floor(start/1000),Math.floor(end/1000));
-      monthData=aggregateRawData(raw,"daily");
-      drawCharts("month",monthData);
-      updateStats("monthStats",monthData);
-    }
+  if(type==="raw"){
+    return {
+      labels: raw.map(r=>new Date(r.timestamp*1000).toLocaleString()),
+      IA: raw.map(r=>r.IA), IB: raw.map(r=>r.IB), IC: raw.map(r=>r.IC)
+    };
+  }
+  const grouped={};
+  raw.forEach(r=>{
+    const d=new Date(r.timestamp*1000);
+    let key=(type==="daily")? d.toISOString().split("T")[0]: d.toISOString().slice(0,13)+":00";
+    if(!grouped[key]) grouped[key]={IA:[],IB:[],IC:[]};
+    grouped[key].IA.push(r.IA); grouped[key].IB.push(r.IB); grouped[key].IC.push(r.IC);
+  });
+  return {
+    labels:Object.keys(grouped),
+    IA:Object.values(grouped).map(g=>avg(g.IA)),
+    IB:Object.values(grouped).map(g=>avg(g.IB)),
+    IC:Object.values(grouped).map(g=>avg(g.IC))
+  };
+}
 
-    function drawCharts(prefix,data){
-      renderLine(prefix+"Line",data.labels,data.IA,data.IB,data.IC);
-      renderPie(prefix+"Pie",data.IA,data.IB,data.IC);
-      renderBar(prefix+"Bar",data.labels,data.IA,data.IB,data.IC);
-    }
+async function renderWeekReport(){
+  if(!currentSensor)return;
+  const week=document.getElementById("weekPicker").value;
+  if(!week)return;
+  const start=new Date(week+"-1");
+  const end=new Date(start); end.setDate(start.getDate()+7);
+  const raw=await fetchRawData(currentSensor,Math.floor(start.getTime()/1000),Math.floor(end.getTime()/1000));
+  weekData=aggregateRawData(raw,"daily");
+  drawCharts("week",weekData);
+  updateStats("weekStats",weekData);
+}
 
-    function renderLine(canvasId,labels,IA,IB,IC){
-      if(charts[canvasId]) charts[canvasId].destroy();
-      charts[canvasId]=new Chart(document.getElementById(canvasId),{
-        type:"line",
-        data:{labels,datasets:[
-          {label:"Current A",data:IA,borderColor:"#2a9d8f",fill:false},
-          {label:"Current B",data:IB,borderColor:"#e76f51",fill:false},
-          {label:"Current C",data:IC,borderColor:"#264653",fill:false}
-        ]},
-        options:{responsive:true,maintainAspectRatio:false}
-      });
-    }
+async function renderMonthReport(){
+  if(!currentSensor)return;
+  const month=document.getElementById("monthPicker").value;
+  if(!month)return;
+  const start=new Date(month+"-01");
+  const end=new Date(start); end.setMonth(start.getMonth()+1);
+  const raw=await fetchRawData(currentSensor,Math.floor(start.getTime()/1000),Math.floor(end.getTime()/1000));
+  monthData=aggregateRawData(raw,"daily");
+  drawCharts("month",monthData);
+  updateStats("monthStats",monthData);
+}
 
-    function renderPie(canvasId,IA,IB,IC){
-      if(charts[canvasId]) charts[canvasId].destroy();
-      charts[canvasId]=new Chart(document.getElementById(canvasId),{
-        type:"pie",
-        data:{labels:["Current A","Current B","Current C"],datasets:[{
-          data:[avg(IA),avg(IB),avg(IC)],
-          backgroundColor:["#2a9d8f","#e76f51","#264653"]
-        }]},
-        options:{responsive:true,maintainAspectRatio:false}
-      });
-    }
+function drawCharts(prefix,data){
+  renderLine(prefix+"Line",data.labels,data.IA,data.IB,data.IC);
+  renderPie(prefix+"Pie",data.IA,data.IB,data.IC);
+  renderBar(prefix+"Bar",data.labels,data.IA,data.IB,data.IC);
+}
 
-    function renderBar(canvasId,labels,IA,IB,IC){
-      if(charts[canvasId]) charts[canvasId].destroy();
-      charts[canvasId]=new Chart(document.getElementById(canvasId),{
-        type:"bar",
-        data:{labels,datasets:[
-          {label:"Current A",data:IA,backgroundColor:"#2a9d8f"},
-          {label:"Current B",data:IB,backgroundColor:"#e76f51"},
-          {label:"Current C",data:IC,backgroundColor:"#264653"}
-        ]},
-        options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}}}
-      });
-    }
+function renderLine(canvasId,labels,IA,IB,IC){
+  if(charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId]=new Chart(document.getElementById(canvasId),{
+    type:"line",
+    data:{labels,datasets:[
+      {label:"Current A",data:IA,borderColor:"#2a9d8f",fill:false},
+      {label:"Current B",data:IB,borderColor:"#e76f51",fill:false},
+      {label:"Current C",data:IC,borderColor:"#264653",fill:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false}
+  });
+}
 
-    function updateStats(elId,data){
-      const max=a=>Math.max(...a.map(Number)).toFixed(2);
-      const min=a=>Math.min(...a.map(Number)).toFixed(2);
-      const avg=a=>(a.reduce((x,y)=>x+Number(y),0)/a.length).toFixed(2);
-      document.getElementById(elId).innerText=
-        `Max: A ${max(data.IA)}, B ${max(data.IB)}, C ${max(data.IC)} | `+
-        `Min: A ${min(data.IA)}, B ${min(data.IB)}, C ${min(data.IC)} | `+
-        `Avg: A ${avg(data.IA)}, B ${avg(data.IB)}, C ${avg(data.IC)}`;
-    }
+function renderPie(canvasId,IA,IB,IC){
+  if(charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId]=new Chart(document.getElementById(canvasId),{
+    type:"pie",
+    data:{labels:["Current A","Current B","Current C"],datasets:[{
+      data:[avg(IA),avg(IB),avg(IC)],
+      backgroundColor:["#2a9d8f","#e76f51","#264653"]
+    }]},
+    options:{responsive:true,maintainAspectRatio:false}
+  });
+}
 
-    function exportCSV(type){
-      let data=(type==="week")?weekData:monthData;
-      if(!data){alert("No data available");return;}
-      const gran=document.getElementById(type+"Gran").value;
-      const grouped=aggregateRawData(data,gran);
-      let csv="Label,Current A,Current B,Current C\n";
-      grouped.labels.forEach((label,i)=>{csv+=`${label},${grouped.IA[i]},${grouped.IB[i]},${grouped.IC[i]}\n`;});
-      const blob=new Blob([csv],{type:"text/csv"});
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement("a");
-      a.href=url;a.download=`${currentSensor}_${type}_${gran}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
+function renderBar(canvasId,labels,IA,IB,IC){
+  if(charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId]=new Chart(document.getElementById(canvasId),{
+    type:"bar",
+    data:{labels,datasets:[
+      {label:"Current A",data:IA,backgroundColor:"#2a9d8f"},
+      {label:"Current B",data:IB,backgroundColor:"#e76f51"},
+      {label:"Current C",data:IC,backgroundColor:"#264653"}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}}}
+  });
+}
 
-    async function exportPDF(){
-      if(!monthData){alert("No monthly data available");return;}
-      const { jsPDF } = window.jspdf;
-      const doc=new jsPDF("p","pt","a4");
-      doc.setFontSize(18);
-      doc.text("Monthly Report - "+currentSensor,40,40);
+function updateStats(elId,data){
+  if(data.IA.length===0){document.getElementById(elId).innerText="No data available";return;}
+  const max=a=>Math.max(...a.map(Number)).toFixed(2);
+  const min=a=>Math.min(...a.map(Number)).toFixed(2);
+  const avg=a=>(a.reduce((x,y)=>x+Number(y),0)/a.length).toFixed(2);
+  document.getElementById(elId).innerText=
+    `Max: A ${max(data.IA)}, B ${max(data.IB)}, C ${max(data.IC)} | `+
+    `Min: A ${min(data.IA)}, B ${min(data.IB)}, C ${min(data.IC)} | `+
+    `Avg: A ${avg(data.IA)}, B ${avg(data.IB)}, C ${avg(data.IC)}`;
+}
 
-      const chartsToCapture=["monthLine","monthPie","monthBar"];
-      let yPos=70;
-      for(let id of chartsToCapture){
-        const canvas=document.getElementById(id);
-        const imgData=canvas.toDataURL("image/png",1.0);
-        doc.addImage(imgData,"PNG",40,yPos,500,250);
-        yPos+=270;
-        if(yPos>750){doc.addPage();yPos=40;}
-      }
+function avg(arr){return (arr.reduce((a,b)=>a+Number(b),0)/arr.length).toFixed(2);}
 
-      const stats=document.getElementById("monthStats").innerText;
-      doc.setFontSize(12);
-      doc.text("Statistics: "+stats,40,yPos+20,{maxWidth:500});
-      doc.save(`${currentSensor}_Monthly_Report.pdf`);
-    }
-
-    function avg(arr){return (arr.reduce((a,b)=>a+Number(b),0)/arr.length).toFixed(2);}
-
-    window.onload=loadSensors;
-  </script>
+window.onload=loadSensors;
+</script>
 </body>
 </html>
+
+
 
 
 
