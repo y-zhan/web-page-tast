@@ -125,7 +125,251 @@ let monthData = null;
 
 // === 省略：现有的 loadSensors、selectSensor、fetchRawData 等函数 ===
 // （保持不变，只在末尾新增 CSV/PDF 功能）
+function toggleSearch(){const o=document.getElementById("searchOverlay");o.style.display=(o.style.display==="block")?"none":"block";}
+function toggleSensorMenu(){const m=document.getElementById('sensorDropdown');m.style.display=(m.style.display==='block')?'none':'block';}
+document.addEventListener('click',e=>{const m=document.getElementById('sensorDropdown');const b=document.querySelector('.sensor-toggle-btn');if(!b.contains(e.target)&&!m.contains(e.target)){m.style.display='none';}});
 
+// 动态加载传感器
+async function loadSensors(){
+  try{
+    console.log("开始加载传感器数据...");
+    const res=await fetch(API_BASE);
+    const json=await res.json();
+    console.log("API response:", json);
+
+    if(!json.items || json.items.length === 0){
+      console.log("API返回的数据为空或没有items字段");
+      alert("No sensors found from API.");
+      return;
+    }
+
+    const sensors=[...new Set(json.items.map(r=>r.Sensor_id))];
+    console.log("找到的传感器:", sensors);
+    const dropdown=document.getElementById('sensorDropdown');
+    dropdown.innerHTML="";
+    sensors.forEach(id=>{
+      const div=document.createElement('div');
+      div.textContent=id;
+      div.onclick=()=>selectSensor(id);
+      dropdown.appendChild(div);
+    });
+    
+    // 自动选择第一个传感器
+    if(sensors.length > 0){
+      selectSensor(sensors[0]);
+      document.querySelector('.sensor-toggle-btn').textContent = sensors[0] + ' ▾';
+    }
+  }catch(e){
+    console.error("Failed to load sensors",e);
+    alert("Error loading sensors, check console.");
+  }
+}
+
+function selectSensor(sensor){
+  console.log("选择传感器:", sensor);
+  currentSensor=sensor;
+  
+  // 更新按钮显示文本
+  document.querySelector('.sensor-toggle-btn').textContent = sensor + ' ▾';
+  
+  // 隐藏下拉菜单
+  document.getElementById('sensorDropdown').style.display = 'none';
+  
+  // 设置默认时间范围
+  const now = new Date();
+  const currentWeek = getWeekString(now);
+  const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  
+  document.getElementById('weekPicker').value = currentWeek;
+  document.getElementById('monthPicker').value = currentMonth;
+  
+  renderWeekReport();
+  renderMonthReport();
+}
+
+// 获取当前周的字符串格式 (简化版本)
+function getWeekString(date) {
+  const year = date.getFullYear();
+  const startOfYear = new Date(year, 0, 1);
+  const dayOfYear = Math.floor((date - startOfYear) / (24 * 60 * 60 * 1000)) + 1;
+  const weekNumber = Math.ceil(dayOfYear / 7);
+  
+  return year + '-W' + String(weekNumber).padStart(2, '0');
+}
+
+// 拉取原始数据
+async function fetchRawData(sensor, start, end){
+  try {
+    console.log(`获取数据 - 传感器: ${sensor}, 开始时间: ${start}, 结束时间: ${end}`);
+    console.log(`时间范围: ${new Date(start*1000)} 到 ${new Date(end*1000)}`);
+    
+    const res=await fetch(API_BASE);
+    if(!res.ok) throw new Error("API error");
+    const json=await res.json();
+    console.log("API返回的原始数据:", json);
+    console.log("数据项数量:", json.items ? json.items.length : 0);
+
+    const filtered = json.items.filter(r=>{
+      const ts=r.timestamp;
+      const match = r.Sensor_id===sensor && ts>=start && ts<=end;
+      if(match) {
+        console.log(`匹配的数据点:`, r);
+      }
+      return match;
+    });
+    
+    console.log(`过滤后的数据点数量: ${filtered.length}`);
+    return filtered;
+  } catch(e){
+    console.error("Fetch error:",e);
+    alert("Failed to load data from API.");
+    return [];
+  }
+}
+
+function aggregateRawData(raw,type){
+  if(raw.length === 0) return {labels:[],IA:[],IB:[],IC:[]};
+
+  if(type==="raw"){
+    return {
+      labels: raw.map(r=>new Date(r.timestamp*1000).toLocaleString()),
+      IA: raw.map(r=>r.IA), IB: raw.map(r=>r.IB), IC: raw.map(r=>r.IC)
+    };
+  }
+  const grouped={};
+  raw.forEach(r=>{
+    const d=new Date(r.timestamp*1000);
+    let key=(type==="daily")? d.toISOString().split("T")[0]: d.toISOString().slice(0,13)+":00";
+    if(!grouped[key]) grouped[key]={IA:[],IB:[],IC:[]};
+    grouped[key].IA.push(r.IA); grouped[key].IB.push(r.IB); grouped[key].IC.push(r.IC);
+  });
+  return {
+    labels:Object.keys(grouped),
+    IA:Object.values(grouped).map(g=>avg(g.IA)),
+    IB:Object.values(grouped).map(g=>avg(g.IB)),
+    IC:Object.values(grouped).map(g=>avg(g.IC))
+  };
+}
+
+async function renderWeekReport(){
+  if(!currentSensor){
+    console.log("没有选择传感器，无法生成周报告");
+    return;
+  }
+  const week=document.getElementById("weekPicker").value;
+  if(!week){
+    console.log("没有选择周数，无法生成周报告");
+    return;
+  }
+  
+  console.log(`开始生成周报告 - 传感器: ${currentSensor}, 周数: ${week}`);
+  
+  // 解析ISO周数格式 (例如: 2024-W38)
+  const [year, weekNum] = week.split('-W');
+  const start = getDateFromWeek(parseInt(year), parseInt(weekNum));
+  const end = new Date(start);
+  end.setDate(start.getDate() + 7);
+  
+  console.log(`周报告时间范围: ${start.toLocaleDateString()} 到 ${end.toLocaleDateString()}`);
+  
+  const raw=await fetchRawData(currentSensor,Math.floor(start.getTime()/1000),Math.floor(end.getTime()/1000));
+  weekData=aggregateRawData(raw,"daily");
+  
+  console.log(`周报告数据:`, weekData);
+  
+  drawCharts("week",weekData);
+  updateStats("weekStats",weekData);
+}
+
+// 从年份和周数获取日期
+function getDateFromWeek(year, week) {
+  const jan1 = new Date(year, 0, 1);
+  const daysToAdd = (week - 1) * 7 - jan1.getDay() + 1;
+  const result = new Date(year, 0, 1 + daysToAdd);
+  return result;
+}
+
+async function renderMonthReport(){
+  if(!currentSensor)return;
+  const month=document.getElementById("monthPicker").value;
+  if(!month)return;
+  const start=new Date(month+"-01");
+  const end=new Date(start); end.setMonth(start.getMonth()+1);
+  const raw=await fetchRawData(currentSensor,Math.floor(start.getTime()/1000),Math.floor(end.getTime()/1000));
+  monthData=aggregateRawData(raw,"daily");
+  drawCharts("month",monthData);
+  updateStats("monthStats",monthData);
+}
+
+function drawCharts(prefix,data){
+  renderLine(prefix+"Line",data.labels,data.IA,data.IB,data.IC);
+  renderPie(prefix+"Pie",data.IA,data.IB,data.IC);
+  renderBar(prefix+"Bar",data.labels,data.IA,data.IB,data.IC);
+}
+
+function renderLine(canvasId,labels,IA,IB,IC){
+  if(charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId]=new Chart(document.getElementById(canvasId),{
+    type:"line",
+    data:{labels,datasets:[
+      {label:"Current A",data:IA,borderColor:"#2a9d8f",fill:false},
+      {label:"Current B",data:IB,borderColor:"#e76f51",fill:false},
+      {label:"Current C",data:IC,borderColor:"#264653",fill:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false}
+  });
+}
+
+function renderPie(canvasId,IA,IB,IC){
+  if(charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId]=new Chart(document.getElementById(canvasId),{
+    type:"pie",
+    data:{labels:["Current A","Current B","Current C"],datasets:[{
+      data:[avg(IA),avg(IB),avg(IC)],
+      backgroundColor:["#2a9d8f","#e76f51","#264653"]
+    }]},
+    options:{responsive:true,maintainAspectRatio:false}
+  });
+}
+
+function renderBar(canvasId,labels,IA,IB,IC){
+  if(charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId]=new Chart(document.getElementById(canvasId),{
+    type:"bar",
+    data:{labels,datasets:[
+      {label:"Current A",data:IA,backgroundColor:"#2a9d8f"},
+      {label:"Current B",data:IB,backgroundColor:"#e76f51"},
+      {label:"Current C",data:IC,backgroundColor:"#264653"}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true}}}
+  });
+}
+
+function updateStats(elId,data){
+  if(data.IA.length===0){document.getElementById(elId).innerText="No data available";return;}
+  const max=a=>Math.max(...a.map(Number)).toFixed(2);
+  const min=a=>Math.min(...a.map(Number)).toFixed(2);
+  const avg=a=>(a.reduce((x,y)=>x+Number(y),0)/a.length).toFixed(2);
+  document.getElementById(elId).innerText=
+    `Max: A ${max(data.IA)}, B ${max(data.IB)}, C ${max(data.IC)} | `+
+    `Min: A ${min(data.IA)}, B ${min(data.IB)}, C ${min(data.IC)} | `+
+    `Avg: A ${avg(data.IA)}, B ${avg(data.IB)}, C ${avg(data.IC)}`;
+}
+
+function avg(arr){return (arr.reduce((a,b)=>a+Number(b),0)/arr.length).toFixed(2);}
+
+// 初始化页面
+function initializePage() {
+  // 设置默认时间范围为当前周和月
+  const now = new Date();
+  const currentWeek = getWeekString(now);
+  const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  
+  document.getElementById('weekPicker').value = currentWeek;
+  document.getElementById('monthPicker').value = currentMonth;
+  
+  // 加载传感器
+  loadSensors();
 // === CSV 下载 ===
 function downloadCSV(type) {
   const data = (type === "week") ? weekData : monthData;
