@@ -184,7 +184,7 @@
         const json=await res.json();
         console.log('API Response data:', json); 
         
-        // 检查API返回的数据结构
+        // Check the data structure returned by the API
         if(!json.items || json.items.length === 0){
           console.log("No items found in API response for date:", dateStr);
           allDaysData=allDaysData.filter(d=>d.date!==dateStr);
@@ -193,9 +193,9 @@
           return;
         }
         
-        // 过滤出当前选择传感器的数据
+        // Filter the data of the currently selected sensor
         const filteredItems = json.items.filter(r => r.Sensor_id === sensor);
-        console.log(`过滤后的数据点数量 (传感器 ${sensor}):`, filteredItems.length);
+        console.log(`The number of data points after filtering (Sensor ${sensor}):`, filteredItems.length);
         
         allDaysData=allDaysData.filter(d=>d.date!==dateStr);
         allDaysData.push({
@@ -227,24 +227,24 @@
         console.log('Latest API Response data:', json); 
         apiErrorShown=false;
         
-        // 检查API返回的数据结构
+        // Check the data structure returned by the API
         if(!json.items || json.items.length === 0){
           console.error("No items found in API response");
           return null;
         }
         
-        // 过滤出当前选择传感器的数据
+        // Filter the data of the currently selected sensor
         const sensorItems = json.items.filter(r => r.Sensor_id === sensor);
         if(sensorItems.length === 0){
           console.error(`No data found for sensor: ${sensor}`);
           return null;
         }
         
-        // 获取该传感器最新的数据点（按时间戳排序，取最后一个）
+        // Get the latest data point of the sensor (sort by timestamp, take the last one)
         const latest = sensorItems[sensorItems.length - 1];
         console.log('Latest data point for sensor', sensor, ':', latest);
         
-        // 验证timestamp有效性
+        // Verify timestamp validity
         const timestamp = latest.timestamp;
         if (!timestamp || isNaN(timestamp)) {
           console.error("Invalid timestamp from API:", timestamp);
@@ -264,15 +264,15 @@
 
     /* --- Sensor selection logic --- */
     async function selectSensor(sensor){
-      console.log("选择传感器:", sensor);
+      console.log("Select sensor:", sensor);
       currentSensor=sensor;
       
-      // 更新按钮显示文本
+      // Update button display text
       document.querySelector('.sensor-toggle-btn').textContent = sensor + ' ▾';
-      // 隐藏下拉菜单
+      // Hide drop-down menu
       document.getElementById('sensorDropdown').style.display='none';
       
-      // 立即更新实时数据显示
+      // Update real-time data display immediately
       const latest=await fetchLatestData(currentSensor);
       if(latest){
         currentA.innerText=`${latest.IA.toFixed(2)} A`;
@@ -360,19 +360,19 @@
     /* --- Load sensors from API --- */
     async function loadSensors(){
       try{
-        console.log("开始加载传感器数据...");
+        console.log("Starting to load sensor data...");
         const res=await fetch(API_BASE);
         const json=await res.json();
         console.log("API response:", json);
 
         if(!json.items || json.items.length === 0){
-          console.log("API返回的数据为空或没有items字段");
+          console.log("The data returned by the API is empty or does not have the items field");
           alert("No sensors found from API.");
           return;
         }
 
         const sensors=[...new Set(json.items.map(r=>r.Sensor_id))];
-        console.log("找到的传感器:", sensors);
+        console.log("Founded sensor:", sensors);
         const dropdown=document.getElementById('sensorDropdown');
         dropdown.innerHTML="";
         sensors.forEach(id=>{
@@ -382,7 +382,7 @@
           dropdown.appendChild(div);
         });
         
-        // 自动选择第一个传感器
+        // Automatically select the first sensor
         if(sensors.length > 0){
           selectSensor(sensors[0]);
           document.querySelector('.sensor-toggle-btn').textContent = sensors[0] + ' ▾';
