@@ -149,22 +149,22 @@ function toggleSearch(){const o=document.getElementById("searchOverlay");o.style
 function toggleSensorMenu(){const m=document.getElementById('sensorDropdown');m.style.display=(m.style.display==='block')?'none':'block';}
 document.addEventListener('click',e=>{const m=document.getElementById('sensorDropdown');const b=document.querySelector('.sensor-toggle-btn');if(!b.contains(e.target)&&!m.contains(e.target)){m.style.display='none';}});
 
-// 动态加载传感器
+// Dynamic load cell
 async function loadSensors(){
   try{
-    console.log("开始加载传感器数据...");
+    console.log("Starting to load sensor data...");
     const res=await fetch(API_BASE);
     const json=await res.json();
     console.log("API response:", json);
 
     if(!json.items || json.items.length === 0){
-      console.log("API返回的数据为空或没有items字段");
+      console.log("The data returned by the API is empty or does not have the items field");
       alert("No sensors found from API.");
       return;
     }
 
     const sensors=[...new Set(json.items.map(r=>r.Sensor_id))];
-    console.log("找到的传感器:", sensors);
+    console.log("Sensors found:", sensors);
     const dropdown=document.getElementById('sensorDropdown');
     dropdown.innerHTML="";
     sensors.forEach(id=>{
@@ -174,7 +174,7 @@ async function loadSensors(){
       dropdown.appendChild(div);
     });
     
-    // 自动选择第一个传感器
+    // Automatically select the first sensor
     if(sensors.length > 0){
       selectSensor(sensors[0]);
       document.querySelector('.sensor-toggle-btn').textContent = sensors[0] + ' ▾';
@@ -186,16 +186,16 @@ async function loadSensors(){
 }
 
 function selectSensor(sensor){
-  console.log("选择传感器:", sensor);
+  console.log("Select Sensor:", sensor);
   currentSensor=sensor;
   
-  // 更新按钮显示文本
+  // Update button display text
   document.querySelector('.sensor-toggle-btn').textContent = sensor + ' ▾';
   
-  // 隐藏下拉菜单
+  // Hide drop-down menu
   document.getElementById('sensorDropdown').style.display = 'none';
   
-  // 设置默认时间范围
+  // Set the default time range
   const now = new Date();
   const currentWeek = getWeekString(now);
   const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
@@ -207,7 +207,7 @@ function selectSensor(sensor){
   renderMonthReport();
 }
 
-// 获取当前周的字符串格式 (简化版本)
+// Get the current week in string format (simplified version)
 function getWeekString(date) {
   const year = date.getFullYear();
   const startOfYear = new Date(year, 0, 1);
@@ -217,28 +217,28 @@ function getWeekString(date) {
   return year + '-W' + String(weekNumber).padStart(2, '0');
 }
 
-// 拉取原始数据
+// Pulling raw data
 async function fetchRawData(sensor, start, end){
   try {
-    console.log(`获取数据 - 传感器: ${sensor}, 开始时间: ${start}, 结束时间: ${end}`);
-    console.log(`时间范围: ${new Date(start*1000)} 到 ${new Date(end*1000)}`);
+    console.log(`Get Data - Sensor: ${sensor}, Start time: ${start}, End time: ${end}`);
+    console.log(`Time range: ${new Date(start*1000)} 到 ${new Date(end*1000)}`);
     
     const res=await fetch(API_BASE);
     if(!res.ok) throw new Error("API error");
     const json=await res.json();
-    console.log("API返回的原始数据:", json);
-    console.log("数据项数量:", json.items ? json.items.length : 0);
+    console.log("Raw data returned by the API:", json);
+    console.log("Number of data items:", json.items ? json.items.length : 0);
 
     const filtered = json.items.filter(r=>{
       const ts=r.timestamp;
       const match = r.Sensor_id===sensor && ts>=start && ts<=end;
       if(match) {
-        console.log(`匹配的数据点:`, r);
+        console.log(`Matching data points:`, r);
       }
       return match;
     });
     
-    console.log(`过滤后的数据点数量: ${filtered.length}`);
+    console.log(`The number of data points after filtering: ${filtered.length}`);
     return filtered;
   } catch(e){
     console.error("Fetch error:",e);
@@ -273,35 +273,35 @@ function aggregateRawData(raw,type){
 
 async function renderWeekReport(){
   if(!currentSensor){
-    console.log("没有选择传感器，无法生成周报告");
+    console.log("No sensor is selected, so the weekly report cannot be generated.");
     return;
   }
   const week=document.getElementById("weekPicker").value;
   if(!week){
-    console.log("没有选择周数，无法生成周报告");
+    console.log("No week number selected, unable to generate weekly report");
     return;
   }
   
-  console.log(`开始生成周报告 - 传感器: ${currentSensor}, 周数: ${week}`);
+  console.log(`Starting creating Wekkly report - Sensor : ${currentSensor}, weeks: ${week}`);
   
-  // 解析ISO周数格式 (例如: 2024-W38)
+  // Parsing ISO week number format
   const [year, weekNum] = week.split('-W');
   const start = getDateFromWeek(parseInt(year), parseInt(weekNum));
   const end = new Date(start);
   end.setDate(start.getDate() + 7);
   
-  console.log(`周报告时间范围: ${start.toLocaleDateString()} 到 ${end.toLocaleDateString()}`);
+  console.log(`Weekly report time range: ${start.toLocaleDateString()} 到 ${end.toLocaleDateString()}`);
   
   const raw=await fetchRawData(currentSensor,Math.floor(start.getTime()/1000),Math.floor(end.getTime()/1000));
   weekData=aggregateRawData(raw,"daily");
   
-  console.log(`周报告数据:`, weekData);
+  console.log(`Weekly Reports data:`, weekData);
   
   drawCharts("week",weekData);
   updateStats("weekStats",weekData);
 }
 
-// 从年份和周数获取日期
+// Get date from year and week number
 function getDateFromWeek(year, week) {
   const jan1 = new Date(year, 0, 1);
   const daysToAdd = (week - 1) * 7 - jan1.getDay() + 1;
@@ -378,10 +378,10 @@ function updateStats(elId,data){
 
 function avg(arr){return (arr.reduce((a,b)=>a+Number(b),0)/arr.length).toFixed(2);}
 
-// CSV导出函数
+// CSV export function
 function exportWeekCSV(){
   if(!weekData || !currentSensor) {
-    alert("请先选择传感器并生成周报告");
+    alert("Please select the sensor first and generate a weekly report");
     return;
   }
   
@@ -390,7 +390,7 @@ function exportWeekCSV(){
   
   let csv = 'Date,Time,Current A,Current B,Current C\n';
   
-  // 根据粒度重新聚合数据
+  // Reaggregate data based on granularity
   const aggregatedData = aggregateDataByGranularity(weekData, granMin);
   
   aggregatedData.labels.forEach((label, index) => {
@@ -402,7 +402,7 @@ function exportWeekCSV(){
 
 function exportMonthCSV(){
   if(!monthData || !currentSensor) {
-    alert("请先选择传感器并生成月报告");
+    alert("Please select the sensor first and generate a monthly report");
     return;
   }
   
@@ -411,7 +411,7 @@ function exportMonthCSV(){
   
   let csv = 'Date,Time,Current A,Current B,Current C\n';
   
-  // 根据粒度重新聚合数据
+  // Reaggregate data based on granularity
   const aggregatedData = aggregateDataByGranularity(monthData, granMin);
   
   aggregatedData.labels.forEach((label, index) => {
@@ -421,18 +421,18 @@ function exportMonthCSV(){
   downloadCSV(csv, `Monthly_Report_${currentSensor}_${month}.csv`);
 }
 
-// 根据粒度聚合数据
+// Reaggregate data based on granularity
 function aggregateDataByGranularity(data, granMin) {
   if(granMin >= 1440) {
-    // 每天 - 直接返回原数据
+    // Daily - Return directly to original data
     return data;
   }
   
-  // 对于更细的粒度，这里简化处理，实际应用中需要重新从原始数据聚合
+  // For finer granularity, the processing is simplified here, and in actual application, it is necessary to re-aggregate from the original data
   return data;
 }
 
-// 下载CSV文件
+// Download CSV file
 function downloadCSV(csvContent, filename) {
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
@@ -445,10 +445,10 @@ function downloadCSV(csvContent, filename) {
   document.body.removeChild(link);
 }
 
-// PDF导出函数
+// PDF output function
 function exportWeekPDF(){
   if(!weekData || !currentSensor) {
-    alert("请先选择传感器并生成周报告");
+    alert("Please select the sensor first and generate a weekly report");
     return;
   }
   
@@ -458,7 +458,7 @@ function exportWeekPDF(){
 
 function exportMonthPDF(){
   if(!monthData || !currentSensor) {
-    alert("请先选择传感器并生成月报告");
+    alert("Please select the sensor first and generate a monthly report");
     return;
   }
   
@@ -466,16 +466,16 @@ function exportMonthPDF(){
   generatePDF('month', `Monthly_Report_${currentSensor}_${month}.pdf`);
 }
 
-// 生成PDF
+// Output PDF
 function generatePDF(reportType, filename) {
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF();
   
-  // 添加标题
+  // Add title
   pdf.setFontSize(20);
   pdf.text(reportType === 'week' ? 'Weekly Report' : 'Monthly Report', 20, 30);
   
-  // 添加传感器信息
+  // Add sensor information
   pdf.setFontSize(12);
   pdf.text(`Sensor: ${currentSensor}`, 20, 50);
   
@@ -486,7 +486,7 @@ function generatePDF(reportType, filename) {
   
   pdf.text(`Period: ${period}`, 20, 65);
   
-  // 添加统计信息
+  // Add statistics
   if(data && data.IA.length > 0) {
     const max = a => Math.max(...a.map(Number)).toFixed(2);
     const min = a => Math.min(...a.map(Number)).toFixed(2);
@@ -498,7 +498,7 @@ function generatePDF(reportType, filename) {
     pdf.text(`Avg: A ${avg(data.IA)}, B ${avg(data.IB)}, C ${avg(data.IC)}`, 20, 130);
   }
   
-  // 使用html2canvas捕获图表
+  // Capturing charts using html2canvas
   const chartElements = reportType === 'week' ? 
     ['weekLine', 'weekPie', 'weekBar'] : 
     ['monthLine', 'monthPie', 'monthBar'];
@@ -530,7 +530,7 @@ function generatePDF(reportType, filename) {
           pdf.save(filename);
         }
         
-        // 如果需要新页面
+        // If a new page is needed
         if(index < chartElements.length - 1 && yPosition > 200) {
           pdf.addPage();
           yPosition = 20;
@@ -539,15 +539,15 @@ function generatePDF(reportType, filename) {
     }
   });
   
-  // 如果没有图表，直接保存
+  // If there is no chart, save it directly
   if(chartElements.length === 0) {
     pdf.save(filename);
   }
 }
 
-// 初始化页面
+// Initialization page
 function initializePage() {
-  // 设置默认时间范围为当前周和月
+  // Set the default time range to the current week and month
   const now = new Date();
   const currentWeek = getWeekString(now);
   const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
@@ -555,7 +555,7 @@ function initializePage() {
   document.getElementById('weekPicker').value = currentWeek;
   document.getElementById('monthPicker').value = currentMonth;
   
-  // 加载传感器
+  // Loading sensor
   loadSensors();
 }
 
