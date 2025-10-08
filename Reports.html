@@ -207,8 +207,10 @@ async function loadSensors(){
     // Automatically select the first sensor
     if(sensors.length > 0){
       selectSensor(sensors[0]);
-      document.querySelector('.sensor-toggle-btn').textContent = sensors[0] + ' ▾';
-    }
+      document.getElementById('btnSensor').textContent = sensors[0] + ' ▾';
+  }
+
+
   }catch(e){
     console.error("Failed to load sensors",e);
     alert("Error loading sensors, check console.");
@@ -220,7 +222,7 @@ function selectSensor(sensor){
   currentSensor=sensor;
   
   // Update button display text
-  document.querySelector('.sensor-toggle-btn').textContent = sensor + ' ▾';
+  document.getElementById('btnSensor').textContent = sensor + ' ▾';
   
   // Hide drop-down menu
   document.getElementById('sensorDropdown').style.display = 'none';
@@ -654,9 +656,9 @@ window.onload=initializePage;
 
     // Select an installation and rebuild sensor list under it
     async function selectInstallation(installation){
-      console.log("[Reports/install] selectInstallation:", installation);
-      var buttons=document.querySelectorAll('.sensor-toggle-btn');
-      if(buttons.length){ buttons[0].textContent = installation + " ▾"; }
+    console.log("[Reports/install] selectInstallation:", installation);
+    const btnInstall = document.getElementById('btnInstall');
+    if (btnInstall) btnInstall.textContent = installation + " ▾";
       var m=document.getElementById('installationDropdown');
       if(m){ m.style.display='none'; }
       await loadSensorsForInstallation(installation);
@@ -693,8 +695,9 @@ window.onload=initializePage;
         });
 
         if(sensors.length>0){
-          console.log("[Reports/install] auto select first sensor:", sensors[0]);
-          selectSensor(sensors[0]);
+        console.log("[Reports/install] auto select first sensor:", sensors[0]);
+        selectSensor(sensors[0]);
+        document.getElementById('btnSensor').textContent = sensors[0] + " ▾";
           if(buttons && buttons.length>1){ buttons[1].textContent = sensors[0] + " ▾"; }
         }else{
           console.warn("[Reports/install] no sensors under installation:", installation);
